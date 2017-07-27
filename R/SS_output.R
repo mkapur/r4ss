@@ -1092,25 +1092,46 @@ SS_output <-
   managementratiolabels <- matchfun2("DERIVED_QUANTITIES",1,"DERIVED_QUANTITIES",3,cols=1:2)
   names(managementratiolabels) <- c("Ratio","Label")
 
+  # starting in 3.30.06.02, Report.sso includes
+  # "forecast_selectivity_averaged_over_years:_...", or
+  # "forecast_selectivity_from_time-varying_parameters",
+  # requiring a different end point to reading table
+  forecast_selectivity_option <- rawrep[matchfun("forecast_selectivity_"),1]
+  offset <- ifelse(is.na(forecast_selectivity_option), -1, -2)
+  
   # time-varying parameters
   MGparmAdj <- matchfun2("MGparm_By_Year_after_adjustments",1,
-                         "selparm(Size)_By_Year_after_adjustments",-1,header=TRUE)
+                         "selparm(Size)_By_Year_after_adjustments",
+                         offset, header=TRUE)
   # make older SS output names match current SS output conventions
   MGparmAdj <- df.rename(MGparmAdj, oldnames="Year", newnames="Yr")
   # make values numeric
   if(nrow(MGparmAdj)>0){
-    for(icol in 1:ncol(MGparmAdj)) MGparmAdj[,icol] <- as.numeric(MGparmAdj[,icol])
+    for(icol in 1:ncol(MGparmAdj)){
+      MGparmAdj[,icol] <- as.numeric(MGparmAdj[,icol])
+    }
   }else{
     MGparmAdj <- NA
   }
 
   # time-varying size-selectivity parameters
-  SelSizeAdj <- matchfun2("selparm(Size)_By_Year_after_adjustments",2,"selparm(Age)_By_Year_after_adjustments",-1)
+  SelSizeAdj <- matchfun2("selparm(Size)_By_Year_after_adjustments",2,
+                          "selparm(Age)_By_Year_after_adjustments",-1)
   if(nrow(SelSizeAdj)>2){
     SelSizeAdj <- SelSizeAdj[,apply(SelSizeAdj,2,emptytest)<1]
     SelSizeAdj[SelSizeAdj==""] <- NA
-    for(icol in 1:ncol(SelSizeAdj)) SelSizeAdj[,icol] <- as.numeric(SelSizeAdj[,icol])
-    names(SelSizeAdj) <- c("FleetSvy","Yr",paste("Par",1:(ncol(SelSizeAdj)-2),sep=""))
+    # make values numeric
+    for(icol in 1:ncol(SelSizeAdj)){
+      SelSizeAdj[,icol] <- as.numeric(SelSizeAdj[,icol])
+    }
+    # provide rownames (after testing for extra column added in 3.30.06.02)
+    if(rawrep[matchfun("selparm(Size)_By_Year_after_adjustments")+1, 3] == "Change?"){
+      names(SelSizeAdj) <- c("Flt","Yr","Change?",
+                             paste("Par",1:(ncol(SelSizeAdj)-3),sep=""))
+    }else{
+      names(SelSizeAdj) <- c("Flt","Yr",
+                             paste("Par",1:(ncol(SelSizeAdj)-2),sep=""))
+    }
   }else{
     SelSizeAdj <- NA
   }
@@ -1120,11 +1141,21 @@ SS_output <-
   if(nrow(SelAgeAdj)>2){
     SelAgeAdj <- SelAgeAdj[,apply(SelAgeAdj,2,emptytest)<1]
     SelAgeAdj[SelAgeAdj==""] <- NA
+    # test for empty table
     if(SelAgeAdj[1,1]=="RECRUITMENT_DIST"){
       SelAgeAdj <- NA
     }else{
+      # make values numeric
       for(icol in 1:ncol(SelAgeAdj)) SelAgeAdj[,icol] <- as.numeric(SelAgeAdj[,icol])
-      names(SelAgeAdj) <- c("FleetSvy","Yr",paste("Par",1:(ncol(SelAgeAdj)-2),sep=""))
+      names(SelAgeAdj) <- c("Flt","Yr",paste("Par",1:(ncol(SelAgeAdj)-2),sep=""))
+      # provide rownames (after testing for extra column added in 3.30.06.02)
+      if(rawrep[matchfun("selparm(Age)_By_Year_after_adjustments")+1, 3] == "Change?"){
+        names(SelAgeAdj) <- c("Flt","Yr","Change?",
+                               paste("Par",1:(ncol(SelAgeAdj)-3),sep=""))
+      }else{
+        names(SelAgeAdj) <- c("Flt","Yr",
+                               paste("Par",1:(ncol(SelAgeAdj)-2),sep=""))
+      }
     }
   }else{
     SelAgeAdj <- NA
@@ -1332,7 +1363,6 @@ SS_output <-
     agentune <- matchfun2("Age_Comp_Fit_Summary",1,"FIT_SIZE_COMPS",-1,
                           header=TRUE)
   }
-  #browser()
   if(!is.null(dim(agentune))){
     names(agentune)[ncol(agentune)] <- "FleetName"
     agentune <- agentune[agentune$N>0, ]
@@ -1450,6 +1480,7 @@ SS_output <-
   returndat$MGparmAdj   <- MGparmAdj
   returndat$SelSizeAdj  <- SelSizeAdj
   returndat$SelAgeAdj   <- SelAgeAdj
+  returndat$forecast_selectivity_option <- forecast_selectivity_option
   returndat$recruitment_dist <- recruitment_dist
   returndat$recruit     <- recruit
   returndat$breakpoints_for_bias_adjustment_ramp <- breakpoints_for_bias_adjustment_ramp
